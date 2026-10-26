@@ -1,0 +1,6 @@
+{
+  "repository": "https://github.com/Tencent/WeKnora.git",
+  "commit": "3e8b0bfc80b845b2d4b2ed683994748741450a97",
+  "tag": "v0.8.2",
+  "note": "platform/weknora contains current tracked files plus new internal Go sources and selected adapter source. Patch covers tracked changes only. No Git history or runtime binary included."
+}

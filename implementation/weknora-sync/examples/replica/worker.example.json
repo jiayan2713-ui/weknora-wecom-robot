@@ -1,0 +1,22 @@
+{
+  "source_mode": "replica",
+  "source_root": "/srv/robot5/sources",
+  "markdown_root": "/srv/robot5/markdown",
+  "state_dir": "/srv/robot5/worker-state",
+  "replica_state_dir": "/srv/robot5/replica-state",
+  "scope_id": "project-consultation",
+  "generation": "REPLACE_WITH_FIXED_GENERATION",
+  "weknora_base_url": "http://127.0.0.1:8090",
+  "knowledge_base_id": "98f02397-d24e-45e1-a7cd-d15ee586a0bd",
+  "folder_root": "项目to咨询",
+  "api_key_file": "/srv/robot5/private/weknora-api-key.txt",
+  "model_secrets_file": "/srv/robot5/private/model-env.json",
+  "baseline_mapping": "/srv/robot5/baseline.json",
+  "automatic_deletion_enabled": false,
+  "interval_seconds": 30,
+  "stable_seconds": 30,
+  "max_jobs_per_cycle": 6,
+  "llm_enabled": true,
+  "allow_model_calls": true,
+  "parser_config": {"model": "qwen3.8-flash", "model_review": false}
+}

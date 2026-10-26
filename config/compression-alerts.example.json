@@ -1,0 +1,14 @@
+{
+  "registry": "@RUNTIME_ROOT@/compression",
+  "state_dir": "@RUNTIME_ROOT@/compression-alerts",
+  "notifier_app": "/Users/xinchengyuan/Desktop/原始文件解析_评测集生成/.local/CompressionAlerts.app",
+  "daily_hour": 3,
+  "daily_minute": 0,
+  "missing_grace_minutes": 15,
+  "sync_grace_minutes": 15,
+  "running_timeout_minutes": 60,
+  "scope_relative": "售前文档",
+  "apply_enabled": false,
+  "desktop": false,
+  "schedule_enabled_at": "2026-10-19T15:25:59.066804+08:00"
+}

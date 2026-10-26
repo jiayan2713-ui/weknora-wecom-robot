@@ -1,0 +1,12 @@
+{
+  "tracked_patch_reverse_check": "passed",
+  "go_build_and_tests": "not_run: Go toolchain not installed in the inspection shell; no image build performed",
+  "production_services": "not_started_or_stopped",
+  "live_model_calls": "not_run",
+  "live_crm_writes": "not_run",
+  "push": "not_run",
+  "notes": [
+    "Initial tests with bare Homebrew Python failed due to missing dependencies. Tests were repeated using existing installed dependencies; final results are in unit-tests.json.",
+    "Optional Codex artifact backend is intentionally absent; two corresponding tests are skipped."
+  ]
+}

@@ -1,0 +1,2 @@
+
+You are an expert evaluator scoring how well an AI-generated answer matches a gold standard (ground truth).

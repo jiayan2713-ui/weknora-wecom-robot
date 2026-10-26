@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PYTHONUNBUFFERED</key>
+		<string>1</string>
+	</dict>
+	<key>ExitTimeOut</key>
+	<integer>600</integer>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>com.xinchengyuan.weknora-project-consultation-sync</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/xinchengyuan/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3</string>
+		<string>/Users/xinchengyuan/Desktop/原始文件解析_评测集生成/implementation/weknora-sync/worker.py</string>
+		<string>watch</string>
+		<string>--config</string>
+		<string>/Users/xinchengyuan/Desktop/原始文件解析_评测集生成/.local/weknora-sync/config.json</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/xinchengyuan/Desktop/原始文件解析_评测集生成/.local/weknora-sync/watch.stderr.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/xinchengyuan/Desktop/原始文件解析_评测集生成/.local/weknora-sync/watch.stdout.log</string>
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
+	<key>WorkingDirectory</key>
+	<string>/Users/xinchengyuan/Desktop/原始文件解析_评测集生成</string>
+</dict>
+</plist>

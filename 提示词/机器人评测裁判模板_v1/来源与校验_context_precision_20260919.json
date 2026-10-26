@@ -1,0 +1,87 @@
+{
+  "created_at": "2026-09-19T04:16:46.953632+00:00",
+  "status": "context_precision_template_prepared_no_judge_calls",
+  "ragas_version": "0.3.1",
+  "metric": "LLMContextPrecisionWithReference",
+  "source_module_path": "/Users/xinchengyuan/Desktop/原始文件解析_评测集生成/outputs/机器人4_指标评测_20260917/.venv/lib/python3.12/site-packages/ragas/metrics/_context_precision.py",
+  "source_documentation": "https://docs.ragas.io/en/v0.3.1/concepts/metrics/available_metrics/context_precision/",
+  "dependency_RECORD_checks": {
+    "ragas/metrics/_context_precision.py": {
+      "sha256": "0e85845e417d4460db797ffb6f1d821b5a7cf65983e069bea8b0319eb07d7cba",
+      "matches_distribution_RECORD": true
+    },
+    "ragas/prompt/pydantic_prompt.py": {
+      "sha256": "56efb49a259c51c260dc39ab511f62b60ce997791514a77b4bfacf039b469547",
+      "matches_distribution_RECORD": true
+    }
+  },
+  "checks": {
+    "instruction_exact": true,
+    "examples_exact": true,
+    "examples_preserved": 3,
+    "input_mapping_uses_reference": true,
+    "complete_prompt_rendering": [
+      {
+        "characters": 3991,
+        "matches_PydanticPrompt_to_string": true
+      },
+      {
+        "characters": 4011,
+        "matches_PydanticPrompt_to_string": true
+      }
+    ],
+    "single_chunk_per_judgment": true,
+    "formula_cases": [
+      {
+        "verdicts": [
+          1,
+          0,
+          1
+        ],
+        "score": 0.8333333332916666
+      },
+      {
+        "verdicts": [
+          1,
+          1,
+          0
+        ],
+        "score": 0.99999999995
+      },
+      {
+        "verdicts": [
+          0,
+          1
+        ],
+        "score": 0.49999999995
+      },
+      {
+        "verdicts": [
+          1,
+          0
+        ],
+        "score": 0.9999999999
+      },
+      {
+        "verdicts": [
+          0,
+          0
+        ],
+        "score": 0.0
+      },
+      {
+        "verdicts": [],
+        "score": 0.0
+      }
+    ]
+  },
+  "model_calls_executed_in_this_operation": false,
+  "robot_scores_changed": false,
+  "human_calibration_completed_in_this_operation": false,
+  "files": {
+    "08_上下文精确率_RAGAS原版.md": "bdbcf14fc3ff8d657a7d9db03f5a6187b3ce55ab934a5cc705d99d086144eb6f",
+    "上游原文/_context_precision.py": "0e85845e417d4460db797ffb6f1d821b5a7cf65983e069bea8b0319eb07d7cba",
+    "上游原文/ragas_0.3.1_context_precision_prompt.json": "684c27b66924bd507988bf3e015346b1116c37d9ccda2993f275a8fc1b22a2d1",
+    "可调用模板/context_precision_with_reference.prompt.template.txt": "a0a24c817fe5750b80fac1535c56f8b667412f134841705037b7660df76221b3"
+  }
+}

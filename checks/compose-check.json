@@ -1,0 +1,16 @@
+{
+  "exit_code": 0,
+  "operation": "docker compose config only; no build/up/stop",
+  "services": [
+    "frontend",
+    "app",
+    "docreader",
+    "postgres",
+    "redis",
+    "neo4j",
+    "bailian-asr"
+  ],
+  "missing_bind_sources": [],
+  "warnings": "",
+  "status": "passed"
+}

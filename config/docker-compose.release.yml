@@ -1,0 +1,47 @@
+# Use with platform/weknora/docker-compose.yml; relative mounts resolve there.
+# This is a source-build deployment, not the old production binary mount.
+services:
+  app:
+    image: robot5-weknora-app:source-20261026
+    environment:
+      LOG_FORMAT: ""
+  docreader:
+    image: robot5-weknora-docreader:source-20261026
+    volumes:
+      - ./local-adapters/table-native-20261021/excel_parser.py:/app/docreader/parser/excel_parser.py:ro
+      - ./local-adapters/table-native-20261021/wps_checkboxes.py:/app/docreader/parser/wps_checkboxes.py:ro
+  neo4j:
+    ports: !override
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
+    environment:
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+  redis:
+    volumes:
+      - redis-data:/data
+  bailian-asr:
+    image: wechatopenai/weknora-app:v0.8.0
+    container_name: WeKnora-bailian-asr
+    entrypoint: ["python3", "/adapter/server.py"]
+    user: "1000:1000"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /tmp:size=268435456,mode=1777
+    volumes:
+      - ./local-adapters/bailian-asr:/adapter:ro
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+    networks:
+      - WeKnora-network
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+volumes:
+  redis-data:

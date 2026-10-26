@@ -1,0 +1,77 @@
+{
+  "source_root": "/Users/xinchengyuan/Library/Containers/com.tencent.WeWorkMac/Data/WeDrive/海那边/项目to咨询",
+  "markdown_root": "/Users/xinchengyuan/Desktop/当前解析结果/项目to咨询/Markdown",
+  "weknora_base_url": "http://127.0.0.1:8090",
+  "knowledge_base_id": "98f02397-d24e-45e1-a7cd-d15ee586a0bd",
+  "knowledge_base_name": "全部售前文档",
+  "folder_root": "项目to咨询",
+  "api_key_file": "/Users/xinchengyuan/Desktop/原始文件解析_评测集生成/.local/weknora-sync/api-key.txt",
+  "required_capabilities": [
+    "retrieve",
+    "ingest"
+  ],
+  "automatic_deletion_enabled": true,
+  "watch_enabled": true,
+  "state_dir": "/Users/xinchengyuan/Desktop/原始文件解析_评测集生成/.local/weknora-sync/live",
+  "baseline_mapping": "/Users/xinchengyuan/Desktop/原始文件解析_评测集生成/outputs/机器人5三方对账_20261010/mapping.json",
+  "interval_seconds": 60,
+  "stable_seconds": 180,
+  "delete_grace_seconds": 60,
+  "max_jobs_per_cycle": 6,
+  "reuse_robot1_artifacts": true,
+  "llm_enabled": true,
+  "model_secrets_file": "/Users/xinchengyuan/Desktop/原始文件解析_评测集生成/.local/wecom-sync/folder-main-env.json",
+  "parser_config": {
+    "model": "qwen3.8-flash",
+    "model_review": false
+  },
+  "excluded_sources": {
+    "P 巴拿马/巴拿马购房移民PR/9、培训/巴拿马项目CRS卖点/巴拿马6月介绍版.pptx": "用户此前明确跳过",
+    "S 新加坡/2、新加坡自雇EP/新加坡EP成功案例/新加坡超全宣传素材-销售/新加坡教育/新加坡国际私立学校最新学费一览.pdf": "图片资产未适配",
+    "S 西班牙/西班牙非盈利移民/8、房源介绍/已售罄/20180802 非盈利房源 15w左右 阿利坎特/15万-阿利坎特萨顿公寓.Ap20180529a.pdf": "用户此前明确跳过",
+    "U 英国/英国杰出人才签证GTV/2、项目介绍（PPT、折页）/英国全球杰出人才签证介绍.pdf": "用户此前明确跳过",
+    "测试/恢复验证_20261014_120456/同步恢复验证.docx": "退出重开恢复验收专用虚构文档，禁止业务入库",
+    "S 新加坡/2、新加坡自雇EP/新加坡EP成功案例/新加坡超全宣传素材-销售/新加坡教育/新加坡国际学校图片合集/伊顿幼儿园8.jpg": "用户明确排除：现场照片，分区解析后无可用正文；保留原图和历史记录，不入库"
+  },
+  "allow_model_calls": true,
+  "model_authorization": "user_explicit_20261010_continuous_project_consultation_to_dashscope_qwen3.8_flash",
+  "delete_missing_scans": 3,
+  "deletion_authorization": "user_explicit_20261012_sync_add_update_delete_then_optimize_cloud_verification",
+  "deletion_policy_intent": "stage1_automatic_local_sync_directory_absence_then_downstream_cleanup",
+  "compression_registry": "/Users/xinchengyuan/Desktop/原始文件解析_评测集生成/outputs/本地同步压缩回写测试_20261013/registry",
+  "compression_local_test_sources": [
+    "测试/Miali（Mia 李）/日本美国西班牙韩国斐济APEC商务卡售前文档/西班牙非盈利售前文档.docx"
+  ],
+  "compression_additional_registries": [
+    "/Users/xinchengyuan/Desktop/原始文件解析_评测集生成/outputs/测试目录定时压缩_20261013/registry",
+    "/Users/xinchengyuan/Desktop/原始文件解析_评测集生成/outputs/售前文档定时压缩_20261019/registry"
+  ],
+  "compression_client_sync_roots": [
+    "测试",
+    "售前文档"
+  ],
+  "failure_notifications": {
+    "enabled": true,
+    "desktop": false,
+    "desktop_cooldown_seconds": 60
+  },
+  "operational_logging": {
+    "enabled": true,
+    "segment_bytes": 10485760,
+    "runtime_files": [
+      "/Users/xinchengyuan/Desktop/原始文件解析_评测集生成/.local/weknora-sync/watch.stdout.log",
+      "/Users/xinchengyuan/Desktop/原始文件解析_评测集生成/.local/weknora-sync/watch.stderr.log"
+    ]
+  },
+  "mass_missing_protection_enabled": false,
+  "pdf_auto_compatibility_enabled": true,
+  "pdf_compatibility_python": "/opt/homebrew/opt/python@3.12/bin/python3.12",
+  "parser_skip_extensions": [
+    ".csv",
+    ".xlsx",
+    ".xls"
+  ],
+  "direct_migration_jobs_per_cycle": 24,
+  "table_docreader_container": "WeKnora-docreader",
+  "table_docker_binary": "/Applications/Docker.app/Contents/Resources/bin/docker"
+}

@@ -1,0 +1,15 @@
+{
+  "status": "passed",
+  "candidate_file_count": 4662,
+  "unexpected_ignored_paths": [],
+  "copied_source_missing_from_stage": [],
+  "sensitive_path_examples_protected": [
+    ".env",
+    ".local/weknora-sync/config.json",
+    "runtime/history/history.sqlite3",
+    "outputs/问答.xlsx",
+    "private/unlock.key",
+    "config/example.local.json"
+  ],
+  "note": "Temporary Git index only; no .git, commit, remote or push in the release directory."
+}

@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+bundled_python="$HOME/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
+if [ -n "${WORKFLOW_PYTHON:-}" ]; then
+  exec "$WORKFLOW_PYTHON" "$project_dir/scripts/workflow.py" "$@"
+elif [ -x "$bundled_python" ]; then
+  exec "$bundled_python" "$project_dir/scripts/workflow.py" "$@"
+else
+  exec python3 "$project_dir/scripts/workflow.py" "$@"
+fi

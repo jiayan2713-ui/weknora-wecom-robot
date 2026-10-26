@@ -1,0 +1,9 @@
+{
+  "source_root": "/srv/robot5/sources",
+  "incoming_dir": "/srv/robot5/incoming",
+  "replica_state_dir": "/srv/robot5/replica-state",
+  "worker_state_dir": "/srv/robot5/worker-state",
+  "scope_id": "project-consultation",
+  "generation": "REPLACE_WITH_FIXED_GENERATION",
+  "interval_seconds": 5
+}

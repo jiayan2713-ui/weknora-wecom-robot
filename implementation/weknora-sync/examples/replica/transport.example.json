@@ -1,0 +1,10 @@
+{
+  "kind": "sftp",
+  "host": "REPLACE-WITH-SERVER",
+  "user": "robot5-transfer",
+  "port": 22,
+  "identity_file": "REPLACE_WITH_PRIVATE_SSH_KEY",
+  "known_hosts_file": "REPLACE_WITH_PINNED_KNOWN_HOSTS",
+  "remote_incoming": "/srv/robot5/incoming",
+  "timeout_seconds": 120
+}

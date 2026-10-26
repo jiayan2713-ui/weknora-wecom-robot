@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/bin:/bin</string>
+		<key>PYTHONUNBUFFERED</key>
+		<string>1</string>
+		<key>TZ</key>
+		<string>Asia/Shanghai</string>
+	</dict>
+	<key>Label</key>
+	<string>com.xinchengyuan.wedrive-test-compression-recovery</string>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/homebrew/opt/python@3.12/bin/python3.12</string>
+		<string>/Users/xinchengyuan/Desktop/原始文件解析_评测集生成/implementation/weknora-sync/compression_batch.py</string>
+		<string>--config</string>
+		<string>/Users/xinchengyuan/Desktop/原始文件解析_评测集生成/outputs/测试目录定时压缩_20261013/config.json</string>
+		<string>--apply</string>
+		<string>--resume-only</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/xinchengyuan/Desktop/原始文件解析_评测集生成/outputs/测试目录定时压缩_20261013/recovery.stderr.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/xinchengyuan/Desktop/原始文件解析_评测集生成/outputs/测试目录定时压缩_20261013/recovery.stdout.log</string>
+	<key>StartInterval</key>
+	<integer>120</integer>
+	<key>WorkingDirectory</key>
+	<string>/Users/xinchengyuan/Desktop/原始文件解析_评测集生成</string>
+</dict>
+</plist>

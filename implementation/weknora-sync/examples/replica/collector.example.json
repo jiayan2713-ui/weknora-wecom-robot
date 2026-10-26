@@ -1,0 +1,10 @@
+{
+  "source_root": "REPLACE_WITH_CLIENT_SYNC_DIRECTORY",
+  "collector_state_dir": "REPLACE_WITH_PRIVATE_COLLECTOR_STATE_DIRECTORY",
+  "scope_id": "project-consultation",
+  "generation": "REPLACE_WITH_FIXED_GENERATION",
+  "stable_seconds": 30,
+  "interval_seconds": 30,
+  "delete_missing_scans": 3,
+  "delete_grace_seconds": 60
+}

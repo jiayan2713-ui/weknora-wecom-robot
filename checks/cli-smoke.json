@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "operation": "--help only; no runtime config loaded",
+  "entries": [
+    {
+      "entry": "implementation/weknora-sync/worker.py",
+      "exit_code": 0
+    },
+    {
+      "entry": "implementation/weknora-sync/compression_batch.py",
+      "exit_code": 0
+    },
+    {
+      "entry": "implementation/weknora-sync/compression_alerts.py",
+      "exit_code": 0
+    },
+    {
+      "entry": "implementation/weknora-sync/mac_deploy.py",
+      "exit_code": 0
+    },
+    {
+      "entry": "implementation/robot5-history-collector/collector.py",
+      "exit_code": 0
+    }
+  ]
+}

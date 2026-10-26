@@ -1,0 +1,7 @@
+{
+  "channel_id": "00000000-0000-0000-0000-000000000001",
+  "agent_id": "00000000-0000-0000-0000-000000000002",
+  "postgres_container": "WeKnora-postgres",
+  "export_backend": "openpyxl",
+  "export_async": true
+}

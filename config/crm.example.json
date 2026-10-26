@@ -1,0 +1,8 @@
+{
+  "enabled": false,
+  "base_url": "https://api.mingdao.com",
+  "app_key": "REPLACE_LOCALLY",
+  "app_sign": "REPLACE_LOCALLY",
+  "worksheet_id": "6ad0408c5f5f96a3cc46f059",
+  "view_id": "REPLACE_LOCALLY"
+}

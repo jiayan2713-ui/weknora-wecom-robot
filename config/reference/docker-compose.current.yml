@@ -1,0 +1,65 @@
+services:
+  app:
+    environment:
+      LOG_FORMAT: ""
+      WEKNORA_DATA_COMPATIBILITY_MANIFEST: "/app/table-compatibility/manifest.json"
+      WEKNORA_EXTRACTIVE_SUMMARY_KNOWLEDGE_IDS: "31f9dfa6-31d2-443c-9071-e9801b6f7c8c,616dfc2a-7126-427e-90ee-3d553b001f45"
+    volumes:
+      - type: bind
+        source: /Users/xinchengyuan/Documents/ChatGPT/调研/weknora-local/local-adapters/enrichment-20261023/tables
+        target: /app/table-compatibility
+        read_only: true
+      - type: bind
+        source: /Users/xinchengyuan/Documents/ChatGPT/调研/weknora-local/local-adapters/im-media-20261023/WeKnora
+        target: /app/WeKnora
+        read_only: true
+      - type: bind
+        source: /Users/xinchengyuan/Documents/ChatGPT/调研/weknora-local/local-adapters/web-url-20261022/jieba-dict
+        target: /build/gomod/github.com/yanyiwu/gojieba@v1.4.7/deps/cppjieba/dict
+        read_only: true
+  bailian-asr:
+    image: wechatopenai/weknora-app:v0.8.0
+    container_name: WeKnora-bailian-asr
+    entrypoint: ["python3", "/adapter/server.py"]
+    user: "1000:1000"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /tmp:size=268435456,mode=1777
+    volumes:
+      - ./local-adapters/bailian-asr:/adapter:ro
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+    networks:
+      - WeKnora-network
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+  neo4j:
+    ports: !override
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
+    environment:
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+  redis:
+    volumes:
+      - redis-data:/data
+  docreader:
+    volumes:
+      - type: bind
+        source: /Users/xinchengyuan/Documents/ChatGPT/调研/weknora-local/local-adapters/table-native-20261021/excel_parser.py
+        target: /app/docreader/parser/excel_parser.py
+        read_only: true
+      - type: bind
+        source: /Users/xinchengyuan/Documents/ChatGPT/调研/weknora-local/local-adapters/table-native-20261021/wps_checkboxes.py
+        target: /app/docreader/parser/wps_checkboxes.py
+        read_only: true
+
+volumes:
+  redis-data:

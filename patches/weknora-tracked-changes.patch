@@ -1,0 +1,749 @@
+diff --git a/internal/agent/engine.go b/internal/agent/engine.go
+index 736aa50..ec28b1a 100644
+--- a/internal/agent/engine.go
++++ b/internal/agent/engine.go
+@@ -73,6 +73,7 @@ type AgentEngine struct {
+ 	// changes messages an earlier request already sent, so the next request
+ 	// cannot be compared with that one for calibration.
+ 	contextRewrites int
++	freshnessQuery  string
+ 	modelContext    *modelcontext.Registry // single request-local boundary for every model handle
+ 	// steerSink, when set, lets users append messages into the running turn.
+ 	// Drained at every round boundary; nil disables mid-run injection.
+@@ -357,6 +358,8 @@ func (e *AgentEngine) Execute(
+ 	})
+ 	ctx = spanCtx
+ 
++	e.freshnessQuery = query
++
+ 	// Initialize state
+ 	state := &types.AgentState{
+ 		RoundSteps:    []types.AgentStep{},
+@@ -486,7 +489,8 @@ func (e *AgentEngine) withinIterationBudget(round int) bool {
+ // and rounds cut off at the completion-token cap.
+ type loopGuards struct {
+ 	// emptyRetries counts nudges sent after a stop with no content.
+-	emptyRetries int
++	emptyRetries     int
++	freshnessRetries int
+ 	// consecutiveSameContent counts plain rounds that repeated the previous
+ 	// plain round verbatim, an identical lack of content included.
+ 	consecutiveSameContent int
+@@ -537,6 +541,9 @@ func (e *AgentEngine) finishStalledTurn(
+ 	// answer would show an opening line and call the turn finished, so the
+ 	// fallback speaks for it instead.
+ 	answer := response.Content
++	if e.freshnessMissing(e.freshnessQuery, answer, state) != "" {
++		answer = freshnessFallback(state)
++	}
+ 	if len(response.ToolCalls) > 0 {
+ 		answer = ""
+ 	}
+@@ -834,6 +841,10 @@ func (e *AgentEngine) runReActIteration(
+ 			response.Usage.PromptCacheHitRate(), response.Usage.CacheStatus)
+ 	}
+ 
++	if e.enforceFreshness(ctx, query, response, state, messagesPtr, guards) {
++		return iterOutcomeContinue, nil
++	}
++
+ 	// Every round in a row that the provider cut off at the completion cap.
+ 	// A truncated *answer* already ends the turn in analyzeResponse, so a run
+ 	// of these means the truncation keeps landing inside tool-call arguments:
+diff --git a/internal/agent/finalize.go b/internal/agent/finalize.go
+index 02cf69f..3e9f695 100644
+--- a/internal/agent/finalize.go
++++ b/internal/agent/finalize.go
+@@ -59,6 +59,9 @@ func (e *AgentEngine) streamFinalAnswerToEventBus(
+ 			ToolChoice:          "none",
+ 		}, // Thinking disabled for final answer synthesis
+ 		func(chunk *types.StreamResponse, fullContent string) {
++			if e.freshnessPolicyEnabled() {
++				return
++			}
+ 			// Defensive filter: only emit answer content, skip thinking chunks
+ 			if chunk.ResponseType == types.ResponseTypeThinking {
+ 				return
+@@ -89,6 +92,19 @@ func (e *AgentEngine) streamFinalAnswerToEventBus(
+ 		return err
+ 	}
+ 
++	fullAnswer := agenttools.StripThinkBlocks(llmResult.Content)
++	reason := e.freshnessMissing(query, fullAnswer, state)
++	if reason == "" {
++		reason = e.reviewFreshnessEvidence(ctx, query, fullAnswer, state)
++	}
++	if reason != "" {
++		fullAnswer = freshnessFallback(state)
++	}
++	if e.freshnessPolicyEnabled() {
++		e.eventBus.Emit(ctx, event.Event{ID: answerID, Type: event.EventAgentFinalAnswer, SessionID: sessionID,
++			Data: event.AgentFinalAnswerData{Content: fullAnswer, Done: false}})
++	}
++
+ 	if !answerDoneEmitted {
+ 		e.eventBus.Emit(ctx, event.Event{
+ 			ID:        answerID,
+@@ -108,7 +124,6 @@ func (e *AgentEngine) streamFinalAnswerToEventBus(
+ 	}
+ 
+ 	// Safety net: strip any residual <think> blocks that may have leaked through
+-	fullAnswer := agenttools.StripThinkBlocks(llmResult.Content)
+ 	logger.Infof(ctx, "[Agent][FinalAnswer] Final answer generated: %d characters", len(fullAnswer))
+ 	common.PipelineInfo(ctx, "Agent", "final_answer_done", map[string]interface{}{
+ 		"session_id": sessionID,
+diff --git a/internal/agent/think.go b/internal/agent/think.go
+index 83d1dae..93ca884 100644
+--- a/internal/agent/think.go
++++ b/internal/agent/think.go
+@@ -318,6 +318,10 @@ func (e *AgentEngine) streamThinkingToEventBus(
+ 		}
+ 	}
+ 	emitAnswer := func(content string) {
++		// This opted-in agent publishes only after the execution evidence gate.
++		if e.freshnessPolicyEnabled() {
++			return
++		}
+ 		if content == "" {
+ 			return
+ 		}
+diff --git a/internal/agent/tools/data_analysis.go b/internal/agent/tools/data_analysis.go
+index 561db4d..2cf8b49 100644
+--- a/internal/agent/tools/data_analysis.go
++++ b/internal/agent/tools/data_analysis.go
+@@ -666,6 +666,15 @@ func (t *DataAnalysisTool) LoadFromKnowledge(ctx context.Context, knowledge *typ
+ 	case "csv":
+ 		return t.LoadFromCSV(ctx, localPath, tableName)
+ 	case "xlsx", "xls":
++		csvPath, compatible, err := resolveCompatibilityCSV(
++			os.Getenv("WEKNORA_DATA_COMPATIBILITY_MANIFEST"), knowledge.ID, localPath)
++		if err != nil {
++			return nil, err
++		}
++		if compatible {
++			logger.Infof(ctx, "[Tool][DataAnalysis] Using fingerprint-verified cached-cell compatibility table for knowledge %s; original workbook preserved", knowledge.ID)
++			return t.LoadFromCSV(ctx, csvPath, tableName)
++		}
+ 		return t.LoadFromExcel(ctx, localPath, tableName)
+ 	default:
+ 		logger.Warnf(ctx, "[Tool][DataAnalysis] Unsupported file type '%s' for knowledge '%s' in session %s",
+diff --git a/internal/application/service/knowledge_process.go b/internal/application/service/knowledge_process.go
+index 9cf4ad1..da7f1a2 100644
+--- a/internal/application/service/knowledge_process.go
++++ b/internal/application/service/knowledge_process.go
+@@ -1129,6 +1129,11 @@ func (s *knowledgeService) getSummary(ctx context.Context,
+ 	})
+ 	if err != nil {
+ 		logger.GetLogger(ctx).WithField("error", err).Errorf("GetSummary failed")
++		if excerpt, excerptErr := localExtractiveSummary(knowledge.ID, chunkContents, err); excerptErr == nil && excerpt != "" {
++			logger.GetLogger(ctx).WithField("knowledge_id", knowledge.ID).
++				Warn("Using explicitly enabled local extractive summary after model content-inspection refusal")
++			return &documentSummaryResult{Summary: excerpt}, nil
++		}
+ 		return nil, err
+ 	}
+ 	content, err := validateSummaryOutput(summary)
+diff --git a/internal/im/adapter.go b/internal/im/adapter.go
+index fc84529..b089094 100644
+--- a/internal/im/adapter.go
++++ b/internal/im/adapter.go
+@@ -44,8 +44,19 @@ const (
+ 	MessageTypeImage MessageType = "image"
+ )
+ 
++// IncomingAttachment retains each media resource and its per-resource download metadata.
++type IncomingAttachment struct {
++	MessageType MessageType
++	FileKey     string
++	FileName    string
++	FileSize    int64
++	Extra       map[string]string
++}
++
+ // IncomingMessage is the unified message parsed from an IM callback.
+ type IncomingMessage struct {
++	// replyStreamID transfers the attachment progress stream to the normal QA reply.
++	replyStreamID string
+ 	// Platform identifies which IM platform the message comes from.
+ 	Platform Platform
+ 	// MessageType is "text" (default) or "file".
+@@ -68,6 +79,8 @@ type IncomingMessage struct {
+ 	FileName string
+ 	// FileSize is the file size in bytes (for file messages, optional).
+ 	FileSize int64
++	// Attachments contains media from a mixed message; legacy fields remain for single resources.
++	Attachments []IncomingAttachment
+ 	// ThreadID is the platform-specific thread identifier.
+ 	// - Slack: thread_ts (top-level message uses its own timestamp)
+ 	// - Mattermost: root_id, or post_id if top-level
+diff --git a/internal/im/content_rewrite_test.go b/internal/im/content_rewrite_test.go
+index d5135fe..81c79a8 100644
+--- a/internal/im/content_rewrite_test.go
++++ b/internal/im/content_rewrite_test.go
+@@ -19,7 +19,9 @@ func TestStripIMCitationTags(t *testing.T) {
+ 	}{
+ 		{"no tags", "hello world", "hello world"},
+ 		{"kb tag", `text <kb id="1" title="doc"/> more`, "text  more"},
+-		{"web tag", `see <web url="http://x.com"/> here`, "see  here"},
++		{"web tag", `see <web url="http://x.com"/> here`, "see  http://x.com  here"},
++		{"web query and fragment", `source<web url="https://example.com/path?q=a&amp;b=2#part" title="Page"/>`, "source https://example.com/path?q=a&b=2#part "},
++		{"unsafe web URL", `<web url="javascript:alert(1)"/>`, ""},
+ 		{"multiple", `<kb id="1"/><web url="x"/>text`, "text"},
+ 	}
+ 	for _, tt := range tests {
+diff --git a/internal/im/file_message_test.go b/internal/im/file_message_test.go
+index 3653fb6..2cf09a7 100644
+--- a/internal/im/file_message_test.go
++++ b/internal/im/file_message_test.go
+@@ -35,12 +35,12 @@ func TestFileMessageQAContent(t *testing.T) {
+ 		{
+ 			name: "builds query for file-only event",
+ 			msg:  &IncomingMessage{FileName: "report.pdf"},
+-			want: "我上传了文件「report.pdf」。请确认已收到，并告知我接下来可以如何协助。",
++			want: "我上传了文件「report.pdf」。请读取本轮附件内容并简要概括；如无法读取，请明确说明，不要用知识库中的同名资料替代。",
+ 		},
+ 		{
+ 			name: "uses safe name when platform omits filename",
+ 			msg:  &IncomingMessage{},
+-			want: "我上传了文件「未命名文件」。请确认已收到，并告知我接下来可以如何协助。",
++			want: "我上传了文件「未命名文件」。请读取本轮附件内容并简要概括；如无法读取，请明确说明，不要用知识库中的同名资料替代。",
+ 		},
+ 	}
+ 
+diff --git a/internal/im/service.go b/internal/im/service.go
+index dfbcd72..0027855 100644
+--- a/internal/im/service.go
++++ b/internal/im/service.go
+@@ -7,10 +7,12 @@ import (
+ 	"encoding/json"
+ 	"errors"
+ 	"fmt"
++	"html"
+ 	"io"
+ 	"mime/multipart"
+ 	"net/http"
+ 	"net/textproto"
++	"net/url"
+ 	"os"
+ 	"path/filepath"
+ 	"reflect"
+@@ -68,14 +70,28 @@ const (
+ 	agentCompleteWaitTimeout = 10 * time.Second
+ )
+ 
+-// imCitationTagRe matches inline citation tags produced by the agent pipeline.
+-// These tags are rendered as interactive UI in the web frontend but are meaningless
+-// in IM platforms, so they must be stripped before sending.
++// IM clients cannot render frontend citation widgets. Keep canonical web
++// URLs as plain links and strip private knowledge-base citation metadata.
+ var imCitationTagRe = regexp.MustCompile(`<(?:kb|web)\b[^>]*/?>`)
++var imWebCitationURLRe = regexp.MustCompile(`\burl\s*=\s*"([^"]+)"`)
+ 
+-// stripIMCitationTags removes <kb .../> and <web .../> inline citation tags from s.
++// stripIMCitationTags renders canonical web citations as their original URLs.
+ func stripIMCitationTags(s string) string {
+-	return imCitationTagRe.ReplaceAllString(s, "")
++	return imCitationTagRe.ReplaceAllStringFunc(s, func(tag string) string {
++		if !strings.HasPrefix(tag, "<web") {
++			return ""
++		}
++		match := imWebCitationURLRe.FindStringSubmatch(tag)
++		if len(match) != 2 {
++			return ""
++		}
++		rawURL := html.UnescapeString(match[1])
++		u, err := url.Parse(rawURL)
++		if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") {
++			return ""
++		}
++		return " " + rawURL + " "
++	})
+ }
+ 
+ // imageXMLBlockRe matches <image ...>...</image> blocks produced by
+@@ -314,6 +330,7 @@ type Service struct {
+ 	// Used when tenant StorageEngineConfig cannot build a service for the URL scheme.
+ 	defaultFileSvc  interfaces.FileService
+ 	documentReader  interfaces.DocumentReader
++	modelService    interfaces.ModelService
+ 	storageResolver interfaces.StorageBackendResolver
+ 
+ 	// cmdRegistry holds all registered slash-commands.
+@@ -606,7 +623,45 @@ type imDownloadedAttachment struct {
+ // prepareIMAttachments downloads an IM attachment and exposes its parsed text
+ // (and, for images, a bounded data URI) to the QA pipeline. This is separate
+ // from the optional background knowledge-base save.
+-func (s *Service) prepareIMAttachments(ctx context.Context, msg *IncomingMessage, adapter Adapter) (types.MessageAttachments, []string, *imDownloadedAttachment, error) {
++func (s *Service) prepareIMAttachments(ctx context.Context, msg *IncomingMessage, adapter Adapter) (types.MessageAttachments, []string, []*imDownloadedAttachment, error) {
++	if len(msg.Attachments) == 0 {
++		attachments, images, downloaded, err := s.prepareIMAttachment(ctx, msg, adapter)
++		if downloaded == nil {
++			return attachments, images, nil, err
++		}
++		return attachments, images, []*imDownloadedAttachment{downloaded}, err
++	}
++	if len(msg.Attachments) > 5 {
++		return nil, nil, nil, fmt.Errorf("at most 5 attachments per message")
++	}
++	var attachments types.MessageAttachments
++	var images []string
++	var downloads []*imDownloadedAttachment
++	var totalBytes int
++	for _, item := range msg.Attachments {
++		single := *msg
++		single.Attachments = nil
++		single.MessageType, single.FileKey, single.FileName, single.FileSize = item.MessageType, item.FileKey, item.FileName, item.FileSize
++		single.Extra = item.Extra
++		parsed, urls, downloaded, err := s.prepareIMAttachment(ctx, &single, adapter)
++		if err != nil {
++			return nil, nil, nil, err
++		}
++		if downloaded == nil {
++			return nil, nil, nil, fmt.Errorf("attachment was not downloaded")
++		}
++		totalBytes += len(downloaded.content)
++		if totalBytes > maxIMAttachmentBytes {
++			return nil, nil, nil, fmt.Errorf("combined attachments exceed the 32 MiB limit")
++		}
++		attachments = append(attachments, parsed...)
++		images = append(images, urls...)
++		downloads = append(downloads, downloaded)
++	}
++	return attachments, images, downloads, nil
++}
++
++func (s *Service) prepareIMAttachment(ctx context.Context, msg *IncomingMessage, adapter Adapter) (types.MessageAttachments, []string, *imDownloadedAttachment, error) {
+ 	if msg.MessageType != MessageTypeFile && msg.MessageType != MessageTypeImage {
+ 		return nil, nil, nil, nil
+ 	}
+@@ -634,8 +689,9 @@ func (s *Service) prepareIMAttachments(ctx context.Context, msg *IncomingMessage
+ 	if fileName == "" {
+ 		fileName = msg.FileName
+ 	}
+-	if msg.MessageType == MessageTypeImage && filepath.Ext(fileName) == "" {
+-		fileName += ".png"
++	fileName, err = resolveIMAttachmentFileName(fileName, content)
++	if err != nil {
++		return nil, nil, nil, err
+ 	}
+ 	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(fileName), "."))
+ 	if ext == "" {
+@@ -658,7 +714,10 @@ func (s *Service) prepareIMAttachments(ctx context.Context, msg *IncomingMessage
+ 		result, err = s.documentReader.Read(attachmentCtx, request)
+ 	}
+ 	if err != nil {
+-		logger.Warnf(ctx, "[IM] attachment parsing failed, continuing with attachment metadata: %v", err)
++		return nil, nil, nil, fmt.Errorf("parse attachment %s: %w", fileName, err)
++	}
++	if !isImage && (result == nil || strings.TrimSpace(result.MarkdownContent) == "") {
++		return nil, nil, nil, fmt.Errorf("attachment %s has no readable content", fileName)
+ 	}
+ 	if result != nil {
+ 		applyIMAttachmentTruncation(result.MarkdownContent, &attachment)
+@@ -853,6 +912,7 @@ func NewService(
+ 	streamManager interfaces.StreamManager,
+ 	defaultFileSvc interfaces.FileService,
+ 	documentReader interfaces.DocumentReader,
++	modelService interfaces.ModelService,
+ 	oauthManager *mcppkg.OAuthManager,
+ 	redisClient *redis.Client,
+ 	appCfg *config.Config,
+@@ -881,6 +941,7 @@ func NewService(
+ 		streamManager:    streamManager,
+ 		defaultFileSvc:   defaultFileSvc,
+ 		documentReader:   documentReader,
++		modelService:     modelService,
+ 		storageResolver:  storageResolver,
+ 		oauthManager:     oauthManager,
+ 		cmdRegistry:      registry,
+@@ -1953,19 +2014,28 @@ func (s *Service) executeQARequest(req *qaRequest) {
+ 
+ 	// kbIDs is left empty so the QA pipeline resolves them from the agent config.
+ 	var kbIDs []string
++	cleanupMediaStream := beginIMAttachmentProgress(ctx, req.msg, req.channel, req.adapter)
++	defer cleanupMediaStream()
+ 	attachments, imageURLs, downloaded, err := s.prepareIMAttachments(ctx, req.msg, req.adapter)
++	if err == nil {
++		err = s.analyzeIMImages(ctx, req.agent, req.msg.Content, attachments, downloaded)
++	}
++
+ 	if err != nil {
+ 		logger.Warnf(ctx, "[IM] attachment preparation failed: %v", err)
+-		if sendErr := req.adapter.SendReply(ctx, req.msg, &ReplyMessage{Content: "❌ 无法读取此附件，请重试或改用文字描述。", IsFinal: true}); sendErr != nil {
+-			logger.Warnf(ctx, "[IM] Failed to send attachment error reply: %v", sendErr)
++		if req.msg.replyStreamID == "" {
++			if sendErr := req.adapter.SendReply(ctx, req.msg, &ReplyMessage{Content: "❌ 无法读取此附件，请重试或改用文字描述。", IsFinal: true}); sendErr != nil {
++				logger.Warnf(ctx, "[IM] Failed to send attachment error reply: %v", sendErr)
++			}
+ 		}
+ 		return
+ 	}
+-	if req.channel.KnowledgeBaseID != "" && downloaded != nil {
+-		go s.processDownloadedFileToKnowledgeBase(
+-			context.WithoutCancel(ctx), req.channel, downloaded,
+-		)
++	if req.channel.KnowledgeBaseID != "" {
++		for _, file := range downloaded {
++			go s.processDownloadedFileToKnowledgeBase(context.WithoutCancel(ctx), req.channel, file)
++		}
+ 	}
++	logger.Infof(ctx, "[IM] Attachments prepared: msgid=%s files=%d images=%d", req.msg.MessageID, len(attachments), len(imageURLs))
+ 
+ 	// Determine output mode from channel config.
+ 	streamDisabled := req.channel.OutputMode == "full"
+@@ -2489,7 +2559,7 @@ func briefToolSummary(output string) string {
+ // to avoid API rate-limiting.
+ func (s *Service) handleMessageStream(ctx context.Context, msg *IncomingMessage, session *types.Session, customAgent *types.CustomAgent, kbIDs []string, attachments types.MessageAttachments, imageURLs []string, streamer StreamSender, adapter Adapter, userKey string, tenant *types.Tenant) error {
+ 	// Start the stream on the IM platform (e.g., create Feishu streaming card)
+-	streamID, err := streamer.StartStream(ctx, msg)
++	streamID, err := startIMReplyStream(ctx, msg, streamer)
+ 	if err != nil {
+ 		logger.Warnf(ctx, "[IM] StartStream failed, falling back to non-streaming: %v", err)
+ 		return s.fallbackNonStream(ctx, msg, session, customAgent, kbIDs, attachments, imageURLs, adapter, userKey, tenant)
+@@ -3419,7 +3489,7 @@ func fileMessageQAContent(msg *IncomingMessage) string {
+ 	if fileName == "" {
+ 		fileName = "未命名文件"
+ 	}
+-	return fmt.Sprintf("我上传了文件「%s」。请确认已收到，并告知我接下来可以如何协助。", fileName)
++	return fmt.Sprintf("我上传了文件「%s」。请读取本轮附件内容并简要概括；如无法读取，请明确说明，不要用知识库中的同名资料替代。", fileName)
+ }
+ 
+ // processDownloadedFileToKnowledgeBase stores bytes already downloaded for QA.
+diff --git a/internal/im/wecom/longconn.go b/internal/im/wecom/longconn.go
+index 3ecd6cf..00470a4 100644
+--- a/internal/im/wecom/longconn.go
++++ b/internal/im/wecom/longconn.go
+@@ -645,64 +645,44 @@ func (c *LongConnClient) handleCallback(ctx context.Context, conn *ws.Conn, fram
+ 	}
+ }
+ 
+-// convertMixedMessage converts a WeCom mixed (text+image) message.
+-// Extracts all text content for QA; if there's only images, treat as image message.
++// convertMixedMessage preserves the caption and every image with its own decryption key.
+ func (c *LongConnClient) convertMixedMessage(msg *botMessage, chatID string, chatType im.ChatType, reqID string) *im.IncomingMessage {
+-	isGroup := chatType == im.ChatTypeGroup
+ 	var textParts []string
+-	var firstImageURL string
+-	var firstImageAESKey string
+-
++	var attachments []im.IncomingAttachment
+ 	for _, item := range msg.Mixed.MsgItem {
+ 		switch item.MsgType {
+ 		case "text":
+-			t := strings.TrimSpace(item.Text.Content)
+-			if isGroup {
+-				t = c.stripAtMention(t)
++			text := strings.TrimSpace(item.Text.Content)
++			if chatType == im.ChatTypeGroup {
++				text = c.stripAtMention(text)
+ 			}
+-			if t != "" {
+-				textParts = append(textParts, t)
++			if text != "" {
++				textParts = append(textParts, text)
+ 			}
+ 		case "image":
+-			if firstImageURL == "" && item.Image.URL != "" {
+-				firstImageURL = item.Image.URL
+-				firstImageAESKey = item.Image.AESKey
++			if item.Image.URL != "" {
++				attachments = append(attachments, im.IncomingAttachment{
++					MessageType: im.MessageTypeImage, FileKey: item.Image.URL,
++					FileName: fmt.Sprintf("%s-%d.png", msg.MsgID, len(attachments)+1),
++					Extra:    map[string]string{"aes_key": item.Image.AESKey},
++				})
+ 			}
+ 		}
+ 	}
+-
+-	// If there's text content, treat as text message (QA query)
+-	if len(textParts) > 0 {
+-		return &im.IncomingMessage{
+-			Platform:    im.PlatformWeCom,
+-			MessageType: im.MessageTypeText,
+-			UserID:      msg.From.UserID,
+-			UserName:    msg.From.UserID,
+-			ChatID:      chatID,
+-			ChatType:    chatType,
+-			Content:     strings.Join(textParts, "\n"),
+-			MessageID:   msg.MsgID,
+-			Extra:       map[string]string{"req_id": reqID},
+-		}
++	if len(textParts) == 0 && len(attachments) == 0 {
++		return nil
+ 	}
+-
+-	// Only images, treat as image message (save to KB)
+-	if firstImageURL != "" {
+-		return &im.IncomingMessage{
+-			Platform:    im.PlatformWeCom,
+-			MessageType: im.MessageTypeImage,
+-			UserID:      msg.From.UserID,
+-			UserName:    msg.From.UserID,
+-			ChatID:      chatID,
+-			ChatType:    chatType,
+-			MessageID:   msg.MsgID,
+-			FileKey:     firstImageURL,
+-			FileName:    msg.MsgID + ".png",
+-			Extra:       map[string]string{"req_id": reqID, "aes_key": firstImageAESKey},
+-		}
++	incoming := &im.IncomingMessage{
++		Platform: im.PlatformWeCom, MessageType: im.MessageTypeText,
++		UserID: msg.From.UserID, UserName: msg.From.UserID,
++		ChatID: chatID, ChatType: chatType, MessageID: msg.MsgID,
++		Content: strings.Join(textParts, "\n"), Attachments: attachments,
++		Extra: map[string]string{"req_id": reqID},
+ 	}
+-
+-	return nil
++	if len(attachments) > 0 {
++		incoming.MessageType = im.MessageTypeImage
++	}
++	return incoming
+ }
+ 
+ // closeConn forcibly closes the active WebSocket, which unblocks any pending
+diff --git a/internal/im/wecom/ws_adapter.go b/internal/im/wecom/ws_adapter.go
+index ac5abb8..9f83b1c 100644
+--- a/internal/im/wecom/ws_adapter.go
++++ b/internal/im/wecom/ws_adapter.go
+@@ -8,6 +8,7 @@ import (
+ 	"encoding/base64"
+ 	"fmt"
+ 	"io"
++	"strings"
+ 
+ 	"github.com/Tencent/WeKnora/internal/im"
+ 	"github.com/Tencent/WeKnora/internal/logger"
+@@ -105,7 +106,7 @@ func (a *WSAdapter) DownloadFile(ctx context.Context, msg *im.IncomingMessage) (
+ 	}
+ 
+ 	// Read all encrypted content
+-	encryptedData, err := io.ReadAll(reader)
++	encryptedData, err := io.ReadAll(io.LimitReader(reader, (32<<20)+33))
+ 	reader.Close()
+ 	if err != nil {
+ 		return nil, "", fmt.Errorf("read encrypted file: %w", err)
+@@ -114,6 +115,10 @@ func (a *WSAdapter) DownloadFile(ctx context.Context, msg *im.IncomingMessage) (
+ 	logger.Debugf(ctx, "[WeCom] Decrypting file: name=%s encrypted_size=%d aes_key_len=%d",
+ 		fileName, len(encryptedData), len(aesKeyB64))
+ 
++	if len(encryptedData) > (32<<20)+32 {
++		return nil, "", fmt.Errorf("encrypted attachment exceeds the 32 MiB limit")
++	}
++
+ 	// Decrypt
+ 	decrypted, err := decryptAESCBC(encryptedData, aesKeyB64)
+ 	if err != nil {
+@@ -129,18 +134,13 @@ func (a *WSAdapter) DownloadFile(ctx context.Context, msg *im.IncomingMessage) (
+ // The aesKeyB64 is the base64-encoded AES key provided per-message by WeCom.
+ // IV is the first 16 bytes of the decoded AES key.
+ func decryptAESCBC(ciphertext []byte, aesKeyB64 string) ([]byte, error) {
+-	// WeCom's per-message aeskey is base64-encoded (43 chars → 32 bytes after decode)
+-	aesKey, err := base64.StdEncoding.DecodeString(aesKeyB64 + "=")
++	// WeCom accepts standard Base64 with or without trailing padding.
++	aesKey, err := base64.RawStdEncoding.DecodeString(strings.TrimRight(strings.TrimSpace(aesKeyB64), "="))
+ 	if err != nil {
+-		// Try without padding
+-		aesKey, err = base64.RawStdEncoding.DecodeString(aesKeyB64)
+-		if err != nil {
+-			return nil, fmt.Errorf("base64 decode aes key: %w", err)
+-		}
++		return nil, fmt.Errorf("base64 decode aes key: %w", err)
+ 	}
+-
+-	if len(aesKey) < 16 {
+-		return nil, fmt.Errorf("aes key too short: %d bytes", len(aesKey))
++	if len(aesKey) != 32 {
++		return nil, fmt.Errorf("AES-256 key must be 32 bytes, got %d", len(aesKey))
+ 	}
+ 
+ 	block, err := aes.NewCipher(aesKey)
+@@ -166,15 +166,13 @@ func decryptAESCBC(ciphertext []byte, aesKeyB64 string) ([]byte, error) {
+ 		return nil, fmt.Errorf("empty plaintext after decryption")
+ 	}
+ 	padLen := int(plaintext[len(plaintext)-1])
+-	if padLen > aes.BlockSize || padLen == 0 || padLen > len(plaintext) {
+-		// No valid PKCS#7 padding — return as-is (some implementations may not pad)
+-		return plaintext, nil
++	if padLen > 32 || padLen == 0 || padLen > len(plaintext) {
++		return nil, fmt.Errorf("invalid PKCS#7 padding length")
+ 	}
+ 	// Verify padding bytes
+ 	for i := 0; i < padLen; i++ {
+ 		if plaintext[len(plaintext)-1-i] != byte(padLen) {
+-			// Invalid padding — return as-is
+-			return plaintext, nil
++			return nil, fmt.Errorf("invalid PKCS#7 padding bytes")
+ 		}
+ 	}
+ 	return plaintext[:len(plaintext)-padLen], nil
+diff --git a/internal/modelcontext/citations.go b/internal/modelcontext/citations.go
+index 98e6909..82ec121 100644
+--- a/internal/modelcontext/citations.go
++++ b/internal/modelcontext/citations.go
+@@ -16,7 +16,9 @@ const sourceHandleProtocolPrompt = `
+ ## Source handling protocol (system-owned)
+ Retrieved content uses request-local source handles: cN identifies a knowledge chunk, wN a web page, dN a document, and bN a knowledge base.
+ - Use dN and bN only as tool arguments when a tool requests a document or knowledge base.
+-- Never reveal raw chunk IDs, knowledge IDs, knowledge-base IDs, or private source handles in user-visible output. This does not change separate instructions to preserve retrieved Markdown image URLs.`
++- Never reveal raw chunk IDs, knowledge IDs, knowledge-base IDs, or private source handles in user-visible output. This does not change separate instructions to preserve retrieved Markdown image URLs.
++- To output an original full web URL requested by the user, write exactly <url_ref id="wN"/> for the corresponding current search/fetch result. The system substitutes the original URL, including its path, query and fragment. This works even when source citations are disabled.
++- Never reconstruct, shorten, autocomplete or guess a result URL from its title, domain, snippets or website structure. If no current source handle or exact supplied URL is available, say the URL is unavailable. A URL is not proof that the page was fetched.`
+ 
+ const citationEnabledProtocolPrompt = `
+ - Source citations are enabled for this answer. Cite a knowledge chunk with exactly <ref id="cN"/> and a web page with exactly <ref id="wN"/>.
+@@ -129,10 +131,12 @@ func publicAttr(expression *regexp.Regexp, tag string) string {
+ }
+ 
+ var (
+-	refTagRE       = regexp.MustCompile(`(?i)<ref\s+id\s*=\s*"([^"]+)"\s*/?>`)
+-	refCandidateRE = regexp.MustCompile(`(?is)<ref(?:\s|$)[^>]*(?:>|$)`)
+-	modelKBTagRE   = regexp.MustCompile(`(?is)<kb(?:\s|$)[^>]*(?:>|$)`)
+-	modelWebTagRE  = regexp.MustCompile(`(?is)<web(?:\s|$)[^>]*(?:>|$)`)
++	urlRefTagRE       = regexp.MustCompile(`(?i)^<url_ref\s+id\s*=\s*"(w[1-9][0-9]*)"\s*/?>$`)
++	urlRefCandidateRE = regexp.MustCompile(`(?is)<url_ref(?:\s|$)[^>]*(?:>|$)`)
++	refTagRE          = regexp.MustCompile(`(?i)<ref\s+id\s*=\s*"([^"]+)"\s*/?>`)
++	refCandidateRE    = regexp.MustCompile(`(?is)<ref(?:\s|$)[^>]*(?:>|$)`)
++	modelKBTagRE      = regexp.MustCompile(`(?is)<kb(?:\s|$)[^>]*(?:>|$)`)
++	modelWebTagRE     = regexp.MustCompile(`(?is)<web(?:\s|$)[^>]*(?:>|$)`)
+ )
+ 
+ var (
+@@ -165,8 +169,8 @@ func (r *sourceRegistry) registerLabeledReferences(text string) {
+ 	}
+ }
+ 
+-// ExpandText converts the private model protocol into the existing public
+-// <kb/> / <web/> contract. Unknown handles fail closed and disappear.
++// ExpandText expands source citations and requested original web URLs.
++// Unknown or history-only handles fail closed and disappear.
+ func (r *sourceRegistry) ExpandText(text string) string {
+ 	if r == nil || text == "" {
+ 		return text
+@@ -175,6 +179,22 @@ func (r *sourceRegistry) ExpandText(text string) string {
+ 	// by the model, then create canonical tags solely from registered handles.
+ 	text = modelKBTagRE.ReplaceAllString(text, "")
+ 	text = modelWebTagRE.ReplaceAllString(text, "")
++	// Explicit URL requests are resources, independent of citation visibility.
++	text = urlRefCandidateRE.ReplaceAllStringFunc(text, func(tag string) string {
++		match := urlRefTagRE.FindStringSubmatch(tag)
++		if len(match) != 2 {
++			return ""
++		}
++		handle := strings.ToLower(match[1])
++		if _, current := r.citable.Load(handle); !current {
++			return ""
++		}
++		rawURL, _, ok := r.webs.resolve(handle)
++		if !ok {
++			return ""
++		}
++		return rawURL
++	})
+ 	if !r.citationsEnabled {
+ 		return refCandidateRE.ReplaceAllString(text, "")
+ 	}
+@@ -234,14 +254,14 @@ func (d *citationStreamExpander) Feed(chunk string) string {
+ 			d.pending = data
+ 			break
+ 		}
+-		if isRefTagStart(lower) {
++		if isRefTagStart(lower) || isNamedTagStart(lower, "url_ref") {
+ 			end := strings.IndexByte(data, '>')
+ 			if end < 0 {
+ 				d.pending = data
+ 				break
+ 			}
+ 			tag := data[:end+1]
+-			if refTagRE.MatchString(tag) {
++			if refTagRE.MatchString(tag) || urlRefTagRE.MatchString(tag) {
+ 				out.WriteString(d.registry.ExpandText(tag))
+ 			}
+ 			data = data[end+1:]
+@@ -279,7 +299,7 @@ func isNamedTagStart(value, name string) bool {
+ }
+ 
+ func isSourceTagPending(value string) bool {
+-	for _, name := range []string{"ref", "kb", "web"} {
++	for _, name := range []string{"ref", "url_ref", "kb", "web"} {
+ 		prefix := "<" + name
+ 		if (len(value) <= len(prefix) && strings.HasPrefix(prefix, value)) || isNamedTagStart(value, name) {
+ 			return true
+diff --git a/internal/modelcontext/model_output.go b/internal/modelcontext/model_output.go
+index 84e369d..c86dae1 100644
+--- a/internal/modelcontext/model_output.go
++++ b/internal/modelcontext/model_output.go
+@@ -527,6 +527,7 @@ func (r *sourceRegistry) modelWebSearchOutput(rows []map[string]interface{}, fal
+ 		}
+ 		handle := r.RegisterWeb(rawURL, stringValue(row, "title"))
+ 		fmt.Fprintf(&b, "  <page id=\"%s\" title=\"%s\">\n", handle, escapeAttr(stringValue(row, "title")))
++		fmt.Fprintf(&b, "    <url_ref id=\"%s\"/>\n", handle)
+ 		b.WriteString("    <evidence type=\"search_summary\" verified=\"false\" />\n")
+ 		if u, err := url.Parse(rawURL); err == nil {
+ 			fmt.Fprintf(&b, "    <domain>%s</domain>\n", escapeText(u.Hostname()))
+@@ -597,6 +598,7 @@ func (r *sourceRegistry) modelWebFetchOutput(rows []map[string]interface{}, fall
+ 		}
+ 		if status == "success" {
+ 			b.WriteString(" view=\"excerpt\">\n")
++			fmt.Fprintf(&b, "    <url_ref id=\"%s\"/>\n", handle)
+ 			writeWebPageFileHint(&b, row)
+ 			remainingEvidence := perPage
+ 			successCount++
+diff --git a/internal/modelcontext/registry.go b/internal/modelcontext/registry.go
+index 6f61260..c40c1ac 100644
+--- a/internal/modelcontext/registry.go
++++ b/internal/modelcontext/registry.go
+@@ -338,6 +338,7 @@ func (r *Registry) DecodeOutputText(text string) string {
+ 	}
+ 	text = r.resources.DecodeText(text)
+ 	text = r.resources.StripOrphanHandles(text)
+-	text = r.sources.ExpandText(text)
+-	return r.mcpTools.DecodeKnownText(r.mcpServers.DecodeKnownText(r.issues.DecodeKnownText(text)))
++	text = r.mcpTools.DecodeKnownText(r.mcpServers.DecodeKnownText(r.issues.DecodeKnownText(text)))
++	// Expand source URLs last so handle-like path/query segments remain verbatim.
++	return r.sources.ExpandText(text)
+ }
+diff --git a/internal/modelcontext/stream.go b/internal/modelcontext/stream.go
+index dd8eaad..77fdfa9 100644
+--- a/internal/modelcontext/stream.go
++++ b/internal/modelcontext/stream.go
+@@ -241,9 +241,6 @@ func (d *StreamDecoder) Feed(chunk string) string {
+ 	if d.resources != nil {
+ 		chunk = d.resources.Feed(chunk)
+ 	}
+-	if d.sources != nil {
+-		chunk = d.sources.Feed(chunk)
+-	}
+ 	if d.issues != nil {
+ 		chunk = d.issues.Feed(chunk)
+ 	}
+@@ -256,6 +253,9 @@ func (d *StreamDecoder) Feed(chunk string) string {
+ 	if d.orphans != nil {
+ 		chunk = d.orphans.Feed(chunk)
+ 	}
++	if d.sources != nil {
++		chunk = d.sources.Feed(chunk)
++	}
+ 	return chunk
+ }
+ 
+@@ -270,9 +270,6 @@ func (d *StreamDecoder) Flush() string {
+ 	if d.resources != nil {
+ 		tail = d.resources.Flush()
+ 	}
+-	if d.sources != nil {
+-		tail = d.sources.Feed(tail) + d.sources.Flush()
+-	}
+ 	if d.issues != nil {
+ 		tail = d.issues.Feed(tail) + d.issues.Flush()
+ 	}
+@@ -285,5 +282,8 @@ func (d *StreamDecoder) Flush() string {
+ 	if d.orphans != nil {
+ 		tail = d.orphans.Feed(tail) + d.orphans.Flush()
+ 	}
++	if d.sources != nil {
++		tail = d.sources.Feed(tail) + d.sources.Flush()
++	}
+ 	return tail
+ }
