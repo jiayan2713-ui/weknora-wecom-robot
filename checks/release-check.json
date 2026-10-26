@@ -2,8 +2,8 @@
   "status": "passed",
   "copied_files_verified": 4630,
   "python_files_syntax_checked": 176,
-  "release_files": 4660,
-  "total_bytes": 117304990,
+  "release_files": 4665,
+  "total_bytes": 117367849,
   "errors": [],
   "files": [
     {
@@ -32,9 +32,19 @@
       "sha256": "a3696f134315894225b4c7c72233440a7e62d185bbf2779d7a49f44778ffeb35"
     },
     {
+      "path": "checks/diagram-check.json",
+      "bytes": 301,
+      "sha256": "12ca29e25cbf25ca40a953425004da46827af4d4bbf94e1b36a978c7f5c0521a"
+    },
+    {
       "path": "checks/git-preview.json",
       "bytes": 451,
       "sha256": "e327aff13dc1e68d0eb47977c18d6c2b4504bce06dcd7700176b421546bcb435"
+    },
+    {
+      "path": "checks/github-alerts.json",
+      "bytes": 383,
+      "sha256": "f748d184a7c1d2af4f920fde5cada9271cdb2805fd2eb3ffcc6e1354246a80c1"
     },
     {
       "path": "checks/secret-scan.json",
@@ -247,14 +257,24 @@
       "sha256": "4e50fb4a6863aee2c4c2001fee784bf5fd2799a45da402e18c4294f2502ca983"
     },
     {
+      "path": "docs/architecture.dot",
+      "bytes": 5725,
+      "sha256": "7fce67d9ee9be6077443b992712ac248a2a454055c9e3f15e79958a3261b4484"
+    },
+    {
       "path": "docs/architecture.md",
-      "bytes": 5873,
-      "sha256": "6c415919a74d00e658be2cf8831c3674c1ebc24278de52d0a2903816b0348aed"
+      "bytes": 6139,
+      "sha256": "450417bb0ee3c71a65f280626f5bbeb5e404d19b6b90b1c3932142c7fd090866"
     },
     {
       "path": "docs/architecture.mmd",
       "bytes": 4545,
       "sha256": "ca88a577bebf8be727e09eea93bcd880e833c5ebdd24abfe5285631c241b97ba"
+    },
+    {
+      "path": "docs/architecture.svg",
+      "bytes": 52400,
+      "sha256": "e2321641b6bde802817edcc3fba4fd3aef1e04a445afe92a721414f8f9f881c7"
     },
     {
       "path": "docs/deployment.md",
@@ -263,8 +283,8 @@
     },
     {
       "path": "docs/github-publication.md",
-      "bytes": 1460,
-      "sha256": "f413a6709c6801917ec96220694d69860020861b5952aa8e500d7d028ed6b29d"
+      "bytes": 2287,
+      "sha256": "7dcf533f09485bc31665be3eed9bf531abb3e583461d1ea025108a1cfbd7437d"
     },
     {
       "path": "docs/operations.md",
@@ -23035,6 +23055,11 @@
       "path": "scripts/parser_pilot.py",
       "bytes": 3263,
       "sha256": "d62d1a08416b4c1be677fec12acba44fccf62eb6c7ae97913944e76221fa7ece"
+    },
+    {
+      "path": "scripts/render_architecture.mjs",
+      "bytes": 2957,
+      "sha256": "6f0c23e95912cb2565c25010391b6b1a6c692a589523222d523d7997dc9db052"
     },
     {
       "path": "scripts/run_workflow",

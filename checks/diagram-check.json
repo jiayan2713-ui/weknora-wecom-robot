@@ -1,0 +1,9 @@
+{
+  "format": "SVG",
+  "nodes": 32,
+  "edges": 47,
+  "renderer": "@viz-js/viz 3.31.0 / Graphviz 16.1.0",
+  "mermaid_source_preserved": true,
+  "primary_document_image": "docs/architecture.svg",
+  "github_mermaid_preview": "Unable to render rich display observed; static SVG used as primary diagram"
+}

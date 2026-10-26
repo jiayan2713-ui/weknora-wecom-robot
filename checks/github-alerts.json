@@ -1,0 +1,14 @@
+{
+  "checked_at": "2026-10-26",
+  "alerts": [
+    {
+      "number": 1,
+      "type": "tencent_wechat_api_app_id",
+      "state": "open",
+      "path": "platform/weknora/miniprogram/project.config.json",
+      "line": 32,
+      "identical_to_upstream_commit": "3e8b0bfc80b845b2d4b2ed683994748741450a97",
+      "action": "Recorded only; did not close or modify the alert."
+    }
+  ]
+}

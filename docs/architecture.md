@@ -2,7 +2,14 @@
 
 依据2026-10-26上午的本机服务盘点整理。实线是数据流或服务调用；虚线是调度、按需能力或明确标注的关闭/未验证关系。框图中的数据箭头描述逻辑调用，不代表每个环节本次重新端到端验收。
 
-```mermaid
+![WeKnora企微机器人完整架构](architecture.svg)
+
+[打开完整SVG，可放大查看](architecture.svg) · [Mermaid源文件](architecture.mmd) · [Graphviz源文件](architecture.dot)
+
+<details>
+<summary>查看可编辑的 Mermaid 源码</summary>
+
+```text
 flowchart TB
   subgraph EXT["外部服务 / 云端"]
     WD["企业微信微盘云端<br/>业务原始资料"]
@@ -100,6 +107,8 @@ flowchart TB
   class SOURCE,MD,STATE,BACKUP,SQLITE,FILES,LOG data
   class WEB,NEO disabled
 ```
+
+</details>
 
 ## 三条主链
 
