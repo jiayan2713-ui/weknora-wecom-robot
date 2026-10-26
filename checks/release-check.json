@@ -3,7 +3,7 @@
   "copied_files_verified": 4630,
   "python_files_syntax_checked": 176,
   "release_files": 4660,
-  "total_bytes": 117304358,
+  "total_bytes": 117304990,
   "errors": [],
   "files": [
     {
@@ -13,8 +13,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 3301,
-      "sha256": "18dfd74697f9126c08a921656c36d951dd6af60f39b046bc6e58866204b21b28"
+      "bytes": 3506,
+      "sha256": "56f508b17c96f43ee426e3e74f8eb176d0acbf3b251f9531f156cdbe69b20e36"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
@@ -34,7 +34,7 @@
     {
       "path": "checks/git-preview.json",
       "bytes": 451,
-      "sha256": "94c04aa1d14efda603f16858d0b1ceea9e9aea97df638e76481c4cf164f0fa0d"
+      "sha256": "e327aff13dc1e68d0eb47977c18d6c2b4504bce06dcd7700176b421546bcb435"
     },
     {
       "path": "checks/secret-scan.json",
@@ -263,8 +263,8 @@
     },
     {
       "path": "docs/github-publication.md",
-      "bytes": 1033,
-      "sha256": "eaabe3bad6ecc097367fe81f1e8db76db2e9393640ed954d23fe86f3c4360722"
+      "bytes": 1460,
+      "sha256": "f413a6709c6801917ec96220694d69860020861b5952aa8e500d7d028ed6b29d"
     },
     {
       "path": "docs/operations.md",

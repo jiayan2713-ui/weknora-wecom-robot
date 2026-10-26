@@ -11,3 +11,9 @@
 上传后应核对：远端main与本地提交SHA一致；Git树文件数量与对象一致；README、docs/architecture.md、docs/architecture.mmd、docs/deployment.md、docs/operations.md和checks/检查报告.md均存在且内容一致。
 
 架构图由Markdown中的Mermaid代码块提供，另外保存独立.mmd源文件。部署文档区分空平台安装与生产数据迁移；代码仓库不包含生产恢复快照。
+
+## 首批上传
+
+2026-10-26已完成首次推送，main首批提交为`1a63e7cbc2677de7c59ebe1e6d0ed1c77e11789a`，包含4662个文件。随后更新README的发布状态；最新提交以远端main为准。
+
+最终远端核验会对比完整Git树和七份关键文档的回读内容，报告保存于原项目`outputs/GitHub发布核验_20261026.json`。本源码上传没有替换现有业务服务或执行新机部署。
